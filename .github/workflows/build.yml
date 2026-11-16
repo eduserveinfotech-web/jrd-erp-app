@@ -4,9 +4,6 @@ on: [workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      ANDROID_HOME: ${{ github.workspace }}/android-sdk
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
 
     steps:
       - uses: actions/checkout@v4
@@ -26,20 +23,23 @@ jobs:
           packages: 'platform-tools cmdline-tools;latest'
           accept-android-sdk-licenses: true
 
-      - name: Install Android SDK packages
+      - name: Accept Android SDK licenses and install packages
         shell: bash
         run: |
-          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+          set +o pipefail
+          yes 2>/dev/null | sdkmanager --licenses
           sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Install Bubblewrap
         run: npm i -g @bubblewrap/cli
 
       - name: Generate & Build Signed APK
+        shell: bash
         run: |
           mkdir -p app && cd app
           keytool -genkeypair -v -keystore android.keystore -alias jrd -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=JRD School, O=JRD, C=IN"
-          yes "" | bubblewrap init --manifest="https://jrdschool.online/manifest.json"
+          set +o pipefail
+          yes "" 2>/dev/null | bubblewrap init --manifest="https://jrdschool.online/manifest.json"
           bubblewrap build --skipPwaValidation
 
       - name: Upload APK
