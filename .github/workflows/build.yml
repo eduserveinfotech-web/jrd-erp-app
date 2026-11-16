@@ -64,7 +64,7 @@ jobs:
             },
             "appVersionName": "1.0.0",
             "appVersionCode": 1,
-            "minSdkVersion": 21,
+            "minSdkVersion": 24,
             "targetSdkVersion": 34,
             "compileSdkVersion": 34,
             "enableSiteSettingsShortcut": true,
