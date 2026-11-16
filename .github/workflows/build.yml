@@ -59,6 +59,8 @@ jobs:
               "path": "android.keystore",
               "alias": "jrd"
             },
+            "appVersionName": "1.0.0",
+            "appVersionCode": 1,
             "minSdkVersion": 21,
             "targetSdkVersion": 34,
             "compileSdkVersion": 34,
@@ -74,7 +76,7 @@ jobs:
           BUBBLEWRAP_KEY_PASSWORD: "123456"
         run: |
           keytool -genkeypair -v -keystore android.keystore -alias jrd -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=JRD School, O=JRD, C=IN"
-          bubblewrap update --manifest twa-manifest.json
+          bubblewrap update --manifest twa-manifest.json --skipVersionUpgrade
           bubblewrap build --skipPwaValidation
 
       - name: Upload APK
