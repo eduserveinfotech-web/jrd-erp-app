@@ -146,16 +146,17 @@ jobs:
           }
           EOF
 
-      - name: Build & Sign Universal APK
+      - name: Build & Sign Universal APK with Gradle 8.2
         shell: bash
         run: |
-          gradle wrapper --gradle-version 8.2
-          ./gradlew assembleRelease
+          wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip
+          unzip -q gradle-8.2-bin.zip
+          ./gradle-8.2/bin/gradle assembleRelease
           keytool -genkeypair -v -keystore jrd.keystore -alias jrd -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=JRD School, O=JRD, C=IN"
           $ANDROID_SDK_ROOT/build-tools/33.0.2/zipalign -v -p 4 app/build/outputs/apk/release/app-release-unsigned.apk app-aligned.apk
           $ANDROID_SDK_ROOT/build-tools/33.0.2/apksigner sign --ks jrd.keystore --ks-key-alias jrd --ks-pass pass:123456 --key-pass pass:123456 --v1-signing-enabled true --v2-signing-enabled true --out JRD-School-Universal.apk app-aligned.apk
 
-      - name: Upload APK
+      - name: Upload Universal APK
         uses: actions/upload-artifact@v4
         with:
           name: JRD-School-Universal-APK
