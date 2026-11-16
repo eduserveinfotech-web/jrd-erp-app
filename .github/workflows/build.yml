@@ -26,6 +26,17 @@ jobs:
       - name: Install Bubblewrap
         run: npm i -g @bubblewrap/cli
 
+      - name: Pre-configure Bubblewrap SDK Paths
+        shell: bash
+        run: |
+          mkdir -p ~/.bubblewrap
+          cat << EOF > ~/.bubblewrap/config.json
+          {
+            "jdkPath": "$JAVA_HOME",
+            "androidSdkPath": "$ANDROID_HOME"
+          }
+          EOF
+
       - name: Create TWA Manifest Config
         shell: bash
         run: |
@@ -58,9 +69,13 @@ jobs:
 
       - name: Generate Keystore & Build APK
         shell: bash
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: "123456"
+          BUBBLEWRAP_KEY_PASSWORD: "123456"
         run: |
           keytool -genkeypair -v -keystore android.keystore -alias jrd -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=JRD School, O=JRD, C=IN"
-          bubblewrap build --manifest twa-manifest.json --skipPwaValidation
+          bubblewrap update --manifest twa-manifest.json
+          bubblewrap build --skipPwaValidation
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
