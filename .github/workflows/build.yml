@@ -1,0 +1,26 @@
+name: Build JRD Android APK
+on: [workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Bubblewrap
+        run: npm i -g @bubblewrap/cli
+      - name: Generate & Build Signed APK
+        run: |
+          mkdir app && cd app
+          keytool -genkeypair -v -keystore android.keystore -alias jrd -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=JRD School, O=JRD, C=IN"
+          yes "" | bubblewrap init --manifest="https://jrdschool.online/manifest.json"
+          bubblewrap build --skipPwaValidation
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: JRD-School-Signed-APK
+          path: app/app-release-signed.apk
