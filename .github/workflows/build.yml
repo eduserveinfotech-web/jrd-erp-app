@@ -56,6 +56,8 @@ jobs:
             "shortcuts": [],
             "iconUrl": "https://jrdschool.online/logo.png",
             "maskableIconUrl": "https://jrdschool.online/logo.png",
+            "splashScreenFadeOutDuration": 300,
+            "fallbackType": "customtabs",
             "signingKey": {
               "path": "android.keystore",
               "alias": "jrd"
@@ -70,7 +72,7 @@ jobs:
           }
           EOF
 
-      - name: Generate Keystore & Build APK
+      - name: Generate Keystore & Build Signed APK
         shell: bash
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: "123456"
@@ -80,9 +82,11 @@ jobs:
           bubblewrap update --manifest twa-manifest.json --skipVersionUpgrade
           chmod +x gradlew
           ./gradlew assembleRelease
+          $ANDROID_SDK_ROOT/build-tools/34.0.0/zipalign -v -p 4 app/build/outputs/apk/release/app-release-unsigned.apk app-aligned.apk
+          $ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner sign --ks android.keystore --ks-key-alias jrd --ks-pass pass:123456 --key-pass pass:123456 --v1-signing-enabled true --v2-signing-enabled true --out JRD-Public-School.apk app-aligned.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: JRD-School-Signed-APK
-          path: app/build/outputs/apk/release/*.apk
+          path: JRD-Public-School.apk
