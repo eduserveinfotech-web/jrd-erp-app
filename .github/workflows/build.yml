@@ -20,30 +20,50 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools cmdline-tools;latest'
+          packages: 'platform-tools cmdline-tools;latest build-tools;34.0.0 platforms;android-34'
           accept-android-sdk-licenses: true
-
-      - name: Accept Android SDK licenses and install packages
-        shell: bash
-        run: |
-          set +o pipefail
-          yes 2>/dev/null | sdkmanager --licenses
-          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Install Bubblewrap
         run: npm i -g @bubblewrap/cli
 
-      - name: Generate & Build Signed APK
+      - name: Create TWA Manifest Config
         shell: bash
         run: |
-          mkdir -p app && cd app
+          cat << 'EOF' > twa-manifest.json
+          {
+            "packageId": "com.jrdschool.erp",
+            "host": "jrdschool.online",
+            "name": "JRD Public School",
+            "shortName": "JRD ERP",
+            "startUrl": "/app_login.html",
+            "display": "standalone",
+            "themeColor": "#070709",
+            "navigationColor": "#070709",
+            "backgroundColor": "#070709",
+            "enableNotifications": true,
+            "shortcuts": [],
+            "iconUrl": "https://jrdschool.online/logo.png",
+            "maskableIconUrl": "https://jrdschool.online/logo.png",
+            "signingKey": {
+              "path": "android.keystore",
+              "alias": "jrd"
+            },
+            "minSdkVersion": 21,
+            "targetSdkVersion": 34,
+            "compileSdkVersion": 34,
+            "enableSiteSettingsShortcut": true,
+            "generatorApp": "bubblewrap-cli"
+          }
+          EOF
+
+      - name: Generate Keystore & Build APK
+        shell: bash
+        run: |
           keytool -genkeypair -v -keystore android.keystore -alias jrd -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=JRD School, O=JRD, C=IN"
-          set +o pipefail
-          yes "" 2>/dev/null | bubblewrap init --manifest="https://jrdschool.online/manifest.json"
-          bubblewrap build --skipPwaValidation
+          bubblewrap build --manifest twa-manifest.json --skipPwaValidation
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: JRD-School-Signed-APK
-          path: app/app-release-signed.apk
+          path: app-release-signed.apk
