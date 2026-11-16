@@ -26,12 +26,6 @@ jobs:
           packages: 'platform-tools cmdline-tools;latest'
           accept-android-sdk-licenses: true
 
-      - name: Accept Android SDK licenses
-        shell: bash
-        run: |
-          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
-          yes | sdkmanager --licenses
-
       - name: Install Android SDK packages
         shell: bash
         run: |
