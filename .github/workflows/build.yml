@@ -37,6 +37,7 @@ jobs:
           buildscript {
               repositories {
                   google()
+                  maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
                   mavenCentral()
               }
               dependencies {
@@ -46,6 +47,7 @@ jobs:
           allprojects {
               repositories {
                   google()
+                  maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
                   mavenCentral()
               }
           }
@@ -153,7 +155,7 @@ jobs:
           $ANDROID_SDK_ROOT/build-tools/33.0.2/zipalign -v -p 4 app/build/outputs/apk/release/app-release-unsigned.apk app-aligned.apk
           $ANDROID_SDK_ROOT/build-tools/33.0.2/apksigner sign --ks jrd.keystore --ks-key-alias jrd --ks-pass pass:123456 --key-pass pass:123456 --v1-signing-enabled true --v2-signing-enabled true --out JRD-School-Universal.apk app-aligned.apk
 
-      - name: Upload Universal APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: JRD-School-Universal-APK
