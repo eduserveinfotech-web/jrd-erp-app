@@ -1,4 +1,4 @@
-name: Build JRD Android APK
+name: Build Pure Universal Android APK
 on: [workflow_dispatch]
 
 jobs:
@@ -13,80 +13,148 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools cmdline-tools;latest build-tools;34.0.0 platforms;android-34'
+          packages: 'platform-tools build-tools;33.0.2 platforms;android-33'
           accept-android-sdk-licenses: true
 
-      - name: Install Bubblewrap
-        run: npm i -g @bubblewrap/cli
-
-      - name: Pre-configure Bubblewrap SDK Paths
+      - name: Create Clean Native WebView App
         shell: bash
         run: |
-          SDK_PATH="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
-          mkdir -p ~/.bubblewrap
-          cat << EOF > ~/.bubblewrap/config.json
-          {
-            "jdkPath": "$JAVA_HOME",
-            "androidSdkPath": "$SDK_PATH"
+          mkdir -p app/src/main/java/com/jrdschool/erp
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/drawable
+
+          curl -sL "https://jrdschool.online/logo.png" -o app/src/main/res/drawable/icon.png || true
+
+          cat << 'EOF' > settings.gradle
+          rootProject.name = "JRDPublicSchool"
+          include ':app'
+          EOF
+
+          cat << 'EOF' > build.gradle
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.1.4'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
           }
           EOF
 
-      - name: Create TWA Manifest Config
-        shell: bash
-        run: |
-          cat << 'EOF' > twa-manifest.json
-          {
-            "packageId": "com.jrdschool.erp",
-            "host": "jrdschool.online",
-            "name": "JRD Public School",
-            "shortName": "JRD ERP",
-            "startUrl": "/app_login.html",
-            "display": "standalone",
-            "themeColor": "#070709",
-            "navigationColor": "#070709",
-            "backgroundColor": "#070709",
-            "enableNotifications": true,
-            "shortcuts": [],
-            "iconUrl": "https://jrdschool.online/logo.png",
-            "maskableIconUrl": "https://jrdschool.online/logo.png",
-            "splashScreenFadeOutDuration": 300,
-            "fallbackType": "customtabs",
-            "signingKey": {
-              "path": "android.keystore",
-              "alias": "jrd"
-            },
-            "appVersionName": "1.0.0",
-            "appVersionCode": 1,
-            "minSdkVersion": 24,
-            "targetSdkVersion": 34,
-            "compileSdkVersion": 34,
-            "enableSiteSettingsShortcut": true,
-            "generatorApp": "bubblewrap-cli"
+          cat << 'EOF' > app/build.gradle
+          apply plugin: 'com.android.application'
+          android {
+              namespace 'com.jrdschool.erp'
+              compileSdk 33
+              defaultConfig {
+                  applicationId "com.jrdschool.erp"
+                  minSdk 21
+                  targetSdk 33
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
           }
           EOF
 
-      - name: Generate Keystore & Build Signed APK
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <application
+                  android:label="JRD Public School"
+                  android:icon="@drawable/icon"
+                  android:usesCleartextTraffic="true"
+                  android:hardwareAccelerated="true"
+                  android:theme="@android:style/Theme.NoTitleBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/jrdschool/erp/MainActivity.java
+          package com.jrdschool.erp;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.CookieManager;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          public class MainActivity extends Activity {
+              private WebView webView;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  webView = new WebView(this);
+                  setContentView(webView);
+
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setDatabaseEnabled(true);
+                  settings.setAllowFileAccess(true);
+                  settings.setLoadWithOverviewMode(true);
+                  settings.setUseWideViewPort(true);
+
+                  CookieManager.getInstance().setAcceptCookie(true);
+                  CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
+
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.loadUrl("https://jrdschool.online/app_login.html");
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (webView.canGoBack()) {
+                      webView.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+          }
+          EOF
+
+      - name: Build & Sign Universal APK
         shell: bash
-        env:
-          BUBBLEWRAP_KEYSTORE_PASSWORD: "123456"
-          BUBBLEWRAP_KEY_PASSWORD: "123456"
         run: |
-          keytool -genkeypair -v -keystore android.keystore -alias jrd -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=JRD School, O=JRD, C=IN"
-          bubblewrap update --manifest twa-manifest.json --skipVersionUpgrade
-          chmod +x gradlew
+          gradle wrapper --gradle-version 8.2
           ./gradlew assembleRelease
-          $ANDROID_SDK_ROOT/build-tools/34.0.0/zipalign -v -p 4 app/build/outputs/apk/release/app-release-unsigned.apk app-aligned.apk
-          $ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner sign --ks android.keystore --ks-key-alias jrd --ks-pass pass:123456 --key-pass pass:123456 --v1-signing-enabled true --v2-signing-enabled true --out JRD-Public-School.apk app-aligned.apk
+          keytool -genkeypair -v -keystore jrd.keystore -alias jrd -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=JRD School, O=JRD, C=IN"
+          $ANDROID_SDK_ROOT/build-tools/33.0.2/zipalign -v -p 4 app/build/outputs/apk/release/app-release-unsigned.apk app-aligned.apk
+          $ANDROID_SDK_ROOT/build-tools/33.0.2/apksigner sign --ks jrd.keystore --ks-key-alias jrd --ks-pass pass:123456 --key-pass pass:123456 --v1-signing-enabled true --v2-signing-enabled true --out JRD-School-Universal.apk app-aligned.apk
 
-      - name: Upload APK
+      - name: Upload Universal APK
         uses: actions/upload-artifact@v4
         with:
-          name: JRD-School-Signed-APK
-          path: JRD-Public-School.apk
+          name: JRD-School-Universal-APK
+          path: JRD-School-Universal.apk
