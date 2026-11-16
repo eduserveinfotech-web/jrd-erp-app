@@ -1,24 +1,45 @@
 name: Build JRD Android APK
 on: [workflow_dispatch]
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
       - name: Install Bubblewrap
         run: npm i -g @bubblewrap/cli
+
       - name: Generate & Build Signed APK
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
         run: |
-          mkdir app && cd app
+          mkdir -p app && cd app
           keytool -genkeypair -v -keystore android.keystore -alias jrd -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=JRD School, O=JRD, C=IN"
           yes "" | bubblewrap init --manifest="https://jrdschool.online/manifest.json"
           bubblewrap build --skipPwaValidation
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
