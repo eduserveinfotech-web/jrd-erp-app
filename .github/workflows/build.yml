@@ -19,7 +19,7 @@ jobs:
           packages: 'platform-tools build-tools;33.0.2 platforms;android-33'
           accept-android-sdk-licenses: true
 
-      - name: Create Clean Native WebView App
+      - name: Create Clean Native WebView App with PiP Support
         shell: bash
         run: |
           mkdir -p app/src/main/java/com/jrdschool/erp
@@ -91,7 +91,8 @@ jobs:
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
-                      android:configChanges="orientation|screenSize|keyboardHidden">
+                      android:supportsPictureInPicture="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -105,8 +106,13 @@ jobs:
           package com.jrdschool.erp;
 
           import android.app.Activity;
+          import android.app.PictureInPictureParams;
+          import android.content.res.Configuration;
+          import android.os.Build;
           import android.os.Bundle;
+          import android.util.Rational;
           import android.webkit.CookieManager;
+          import android.webkit.JavascriptInterface;
           import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
@@ -127,12 +133,50 @@ jobs:
                   settings.setAllowFileAccess(true);
                   settings.setLoadWithOverviewMode(true);
                   settings.setUseWideViewPort(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
 
                   CookieManager.getInstance().setAcceptCookie(true);
                   CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
+                  // 🌐 JavaScript से Android Native PiP ट्रिगर करने का ब्रिज
+                  webView.addJavascriptInterface(new Object() {
+                      @JavascriptInterface
+                      public void enterPiP() {
+                          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                              runOnUiThread(() -> {
+                                  try {
+                                      Rational aspectRatio = new Rational(16, 9);
+                                      PictureInPictureParams params = new PictureInPictureParams.Builder()
+                                              .setAspectRatio(aspectRatio)
+                                              .build();
+                                      enterPictureInPictureMode(params);
+                                  } catch (Exception e) {}
+                              });
+                          }
+                      }
+                  }, "AndroidBridge");
+
                   webView.setWebViewClient(new WebViewClient());
                   webView.loadUrl("https://jrdschool.online/app_login.html");
+              }
+
+              // जब छात्र वीडियो देखते समय सीधे होम बटन दबाएगा, तो ऐप ऑटोमैटिक PiP में आ जाएगा
+              @Override
+              protected void onUserLeaveHint() {
+                  super.onUserLeaveHint();
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      webView.evaluateJavascript("if(window.activePipMeta && window.activePipMeta.isPlaying){ 'PLAYING'; } else { 'IDLE'; }", value -> {
+                          if (value != null && value.contains("PLAYING")) {
+                              try {
+                                  Rational aspectRatio = new Rational(16, 9);
+                                  PictureInPictureParams params = new PictureInPictureParams.Builder()
+                                      .setAspectRatio(aspectRatio)
+                                      .build();
+                                  enterPictureInPictureMode(params);
+                              } catch (Exception e) {}
+                          }
+                      });
+                  }
               }
 
               @Override
