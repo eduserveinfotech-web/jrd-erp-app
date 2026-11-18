@@ -107,6 +107,7 @@ jobs:
 
           import android.app.Activity;
           import android.app.PictureInPictureParams;
+          import android.content.pm.ActivityInfo;
           import android.content.res.Configuration;
           import android.os.Build;
           import android.os.Bundle;
@@ -163,7 +164,6 @@ jobs:
                   CookieManager.getInstance().setAcceptCookie(true);
                   CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
-                  // 🌐 फुलस्क्रीन वीडियो सपोर्ट के लिए WebChromeClient
                   webView.setWebChromeClient(new WebChromeClient() {
                       @Override
                       public void onShowCustomView(View view, CustomViewCallback callback) {
@@ -176,16 +176,7 @@ jobs:
                           customViewCallback = callback;
                           webView.setVisibility(View.GONE);
                           customViewContainer.setVisibility(View.VISIBLE);
-
-                          getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                                  WindowManager.LayoutParams.FLAG_FULLSCREEN);
-                          getWindow().getDecorView().setSystemUiVisibility(
-                                  View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                                          | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                                          | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                                          | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                                          | View.SYSTEM_UI_FLAG_FULLSCREEN
-                                          | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+                          enableImmersiveSystemBars(true);
                       }
 
                       @Override
@@ -198,13 +189,11 @@ jobs:
                           if (customViewCallback != null) {
                               customViewCallback.onCustomViewHidden();
                           }
-
-                          getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-                          getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+                          enableImmersiveSystemBars(false);
                       }
                   });
 
-                  // 🌐 JavaScript से Android Native PiP ट्रिगर करने का ब्रिज
+                  // 🌐 JavaScript <-> Android Native Bridge (PiP + Hardware Landscape + Fullscreen Bars)
                   webView.addJavascriptInterface(new Object() {
                       @JavascriptInterface
                       public void enterPiP() {
@@ -220,13 +209,54 @@ jobs:
                               });
                           }
                       }
+
+                      @JavascriptInterface
+                      public void setLandscape(boolean isLand) {
+                          runOnUiThread(() -> {
+                              if (isLand) {
+                                  setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                                  enableImmersiveSystemBars(true);
+                              } else {
+                                  setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                              }
+                          });
+                      }
+
+                      @JavascriptInterface
+                      public void setImmersive(boolean enable) {
+                          runOnUiThread(() -> enableImmersiveSystemBars(enable));
+                      }
                   }, "AndroidBridge");
 
                   webView.setWebViewClient(new WebViewClient());
                   webView.loadUrl("https://jrdschool.online/app_login.html");
               }
 
-              // जब छात्र होम बटन दबाएगा, तो वीडियो ऑटोमैटिक PiP में आ जाएगा
+              private void enableImmersiveSystemBars(boolean hide) {
+                  if (hide) {
+                      getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                              WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                      getWindow().getDecorView().setSystemUiVisibility(
+                              View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                      | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                      | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                      | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                      | View.SYSTEM_UI_FLAG_FULLSCREEN
+                                      | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+                  } else {
+                      getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                      getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+                  }
+              }
+
+              @Override
+              public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, Configuration newConfig) {
+                  super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+                  if (!isInPictureInPictureMode && webView != null) {
+                      webView.evaluateJavascript("if(window.exitAndroidOsPipVisualMode) window.exitAndroidOsPipVisualMode();", null);
+                  }
+              }
+
               @Override
               protected void onUserLeaveHint() {
                   super.onUserLeaveHint();
@@ -245,18 +275,30 @@ jobs:
                   }
               }
 
+              // 🔙 Android का Back बटन दबाने पर पहले वीडियो का मोड स्टेप-वाइज बंद होगा
               @Override
               public void onBackPressed() {
                   if (customView != null) {
                       WebChromeClient client = webView.getWebChromeClient();
-                      if (client != null) {
-                          client.onHideCustomView();
-                      }
-                  } else if (webView.canGoBack()) {
-                      webView.goBack();
-                  } else {
-                      super.onBackPressed();
+                      if (client != null) client.onHideCustomView();
+                      return;
                   }
+
+                  webView.evaluateJavascript(
+                      "(function(){ if(window.handleAndroidBackStep) return window.handleAndroidBackStep(); return 'NONE'; })()",
+                      res -> {
+                          if (res != null && res.contains("HANDLED")) {
+                              return;
+                          }
+                          runOnUiThread(() -> {
+                              if (webView.canGoBack()) {
+                                  webView.goBack();
+                              } else {
+                                  MainActivity.super.onBackPressed();
+                              }
+                          });
+                      }
+                  );
               }
           }
           EOF
